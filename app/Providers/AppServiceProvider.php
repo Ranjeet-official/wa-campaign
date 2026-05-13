@@ -22,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useBootstrap();
-        view()->share('settings', Setting::first());
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
+
+            $settings = Setting::first();
+
+            view()->share('settings', $settings);
+        }
     }
 }
