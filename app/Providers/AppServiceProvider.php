@@ -5,7 +5,7 @@ namespace App\Providers;
 use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
-
+use Illuminate\Support\Facades\Schema;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -23,11 +23,12 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrap();
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
-
-            $settings = Setting::first();
-
-            view()->share('settings', $settings);
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
+                view()->share('settings', \App\Models\Setting::first());
+            }
+        } catch (\Exception $e) {
+            // Ignore database errors during deployment
         }
     }
 }
