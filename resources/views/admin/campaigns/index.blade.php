@@ -121,7 +121,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-5">
+                                <td colspan="9" class="text-center text-muted py-5">
                                     <i class="bi bi-megaphone fs-3 d-block mb-2"></i>
                                     No campaigns found. <a href="{{ route('campaigns.create') }}">Create one</a>
                                 </td>

@@ -65,4 +65,5 @@ Route::prefix('wa')
 
         Route::post('campaigns/{id}/send', [CampaignController::class, 'sendCampaign']);
         Route::resource('templates', TemplateController::class);
+        Route::get('templates/by-client/{clientId}', [TemplateController::class, 'getByClient'])->name('templates.by-client');
     });

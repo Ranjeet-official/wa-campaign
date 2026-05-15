@@ -50,6 +50,8 @@ class CampaignController extends Controller
             'end_date'   => 'required|date|after_or_equal:start_date',
             'contacts'   => 'nullable',
             'media_file' => 'nullable|file|max:20480|required_without:message',
+            'template_id' => 'nullable|exists:templates,id',
+
         ], [
             'name.required'           => 'Campaign name is required.',
 
@@ -92,7 +94,7 @@ class CampaignController extends Controller
             'end_date'   => $request->end_date,
             'status'     => 'draft',
             'total_contacts' => !empty($contacts) ? count($contacts) : 0,
-
+            'template_id' => $request->template_id,
         ]);
 
 
@@ -277,6 +279,8 @@ class CampaignController extends Controller
             'client_id' => 'required|exists:clients,id',
 
             'name' => 'required|string|max:255',
+            'template_id' => 'nullable|exists:templates,id',
+
 
             'message' => [
                 'nullable',
@@ -385,6 +389,7 @@ class CampaignController extends Controller
         $campaign->update([
             'client_id'  => $request->client_id,
             'name'       => $request->name,
+            'template_id'    => $request->template_id,
             'message'    => $request->message,
             'media_file' => $mediaPath,
             'start_date' => $request->start_date,

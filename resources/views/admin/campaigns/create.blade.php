@@ -27,6 +27,38 @@
                             </div>
                         </div>
 
+
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Select Client</label>
+                            <select name="client_id" id="client_id"
+                                class="form-select @error('client_id') is-invalid @enderror">
+                                <option value="">-- Select Client --</option>
+                                @foreach ($clients as $client)
+                                    <option value="{{ $client->id }}"
+                                        {{ old('client_id', $client_id) == $client->id ? 'selected' : '' }}>
+                                        {{ $client->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="text-danger small mt-1" id="error-client_id">
+                                @error('client_id')
+                                    {{ $message }}
+                                @enderror
+                            </div>
+                        </div>
+
+
+                        {{-- Template --}}
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Select Template
+                                <span class="text-secondary">(Optional)</span>
+                            </label>
+                            <select name="template_id" id="template_id" class="form-select" disabled>
+                                <option value="">-- Select Client First --</option>
+                            </select>
+                            <div class="text-danger small mt-1" id="error-template_id"></div>
+                        </div>
+
                         {{-- Message --}}
                         <div class="mb-3">
                             <label class="form-label small text-muted">Message</label>
@@ -114,7 +146,7 @@
                         </div>
 
                         {{-- Client --}}
-                        <div class="mb-3">
+                        {{-- <div class="mb-3">
                             <label class="form-label small text-muted">Select Client</label>
                             <select name="client_id" id="client_id"
                                 class="form-select @error('client_id') is-invalid @enderror">
@@ -136,7 +168,7 @@
                                     {{ $message }}
                                 @enderror
                             </div>
-                        </div>
+                        </div> --}}
 
                         {{-- Excel Upload --}}
                         <div class="mb-4">
@@ -196,6 +228,55 @@
             $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            });
+
+            $('#client_id').on('change', function() {
+                const clientId = $(this).val();
+                const templateSelect = $('#template_id');
+
+                templateSelect.html('<option value="">-- Loading... --</option>').prop('disabled', true);
+                $('#message').val('');
+
+                if (!clientId) {
+                    templateSelect.html('<option value="">-- Select Client First --</option>').prop(
+                        'disabled', true);
+                    return;
+                }
+
+                $.ajax({
+                    url: '/wa/templates/by-client/' + clientId,
+                    type: 'GET',
+                    success: function(res) {
+
+                        // dd(res);
+                        if (res.status && res.templates.length > 0) {
+                            let options = '<option value="">-- Select Template --</option>';
+                            res.templates.forEach(function(t) {
+                                options +=
+                                    `<option value="${t.id}" data-message="${t.message}">${t.name}</option>`;
+                            });
+                            templateSelect.html(options).prop('disabled', false);
+                        } else {
+                            templateSelect.html(
+                                '<option value="">-- No Templates Found --</option>').prop(
+                                'disabled', true);
+                        }
+                    },
+                    error: function() {
+                        templateSelect.html('<option value="">-- Failed to Load --</option>')
+                            .prop('disabled', true);
+                    }
+                });
+            });
+
+
+            $('#template_id').on('change', function() {
+                const message = $(this).find(':selected').data('message');
+                if (message) {
+                    $('#message').val(message);
+                } else {
+                    $('#message').val('');
                 }
             });
 
@@ -265,7 +346,9 @@
                 // Disable button + show spinner
                 const btn = $('#submitBtn');
                 btn.prop('disabled', true)
-                    .html('<span class="spinner-border spinner-border-sm me-1"></span> Saving...');
+                    .html(
+                        '<span class="spinner-border spinner-border-sm me-1"></span> Saving...'
+                    );
 
                 const formData = new FormData(this);
 
@@ -290,7 +373,9 @@
                     error: function(xhr) {
                         // Re-enable button
                         btn.prop('disabled', false)
-                            .html('<i class="bi bi-check2 me-1"></i> Create Campaign');
+                            .html(
+                                '<i class="bi bi-check2 me-1"></i> Create Campaign'
+                            );
 
                         if (xhr.status === 422) {
                             const errors = xhr.responseJSON.errors;
@@ -300,7 +385,8 @@
                                 $('#error-' + field).text(messages[0]);
 
                                 // Add red border on the field
-                                $('[name="' + field + '"]').addClass('is-invalid');
+                                $('[name="' + field + '"]').addClass(
+                                    'is-invalid');
                             });
 
                             // Scroll to first error

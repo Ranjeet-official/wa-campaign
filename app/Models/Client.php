@@ -38,4 +38,15 @@ class Client extends Model
     {
         return $this->hasMany(Campaign::class);
     }
+
+    public function templates()
+    {
+        return $this->hasMany(Template::class);
+    }
+
+
+    public function defaultTemplate()
+    {
+        return $this->belongsTo(Template::class, 'default_template_id');
+    }
 }

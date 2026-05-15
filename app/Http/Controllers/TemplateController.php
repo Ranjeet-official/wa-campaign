@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use App\Models\Template;
 use Illuminate\Http\Request;
 
@@ -21,7 +22,8 @@ class TemplateController extends Controller
      */
     public function create()
     {
-        //
+        $clients = Client::where('status', 'active')->orderBy('name')->get();
+        return view('admin.templates.create', compact('clients'));
     }
 
     /**
@@ -29,7 +31,19 @@ class TemplateController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'client_id' => 'required|exists:clients,id',
+            'name'      => 'required|string|max:255',
+            'status'    => 'required|in:pending,approved,rejected',
+            'message'   => 'required|string',
+        ]);
+
+        Template::create($validated);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Template created successfully!',
+        ]);
     }
 
     /**
@@ -37,23 +51,32 @@ class TemplateController extends Controller
      */
     public function show(Template $template)
     {
-        //
+        return view('admin.templates.show', compact('template'));
     }
-
     /**
      * Show the form for editing the specified resource.
      */
     public function edit(Template $template)
     {
-        //
+        $clients = Client::where('status', 'active')->orderBy('name')->get();
+        return view('admin.templates.edit', compact('template', 'clients'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Template $template)
     {
-        //
+        $validated = $request->validate([
+            'client_id' => 'required|exists:clients,id',
+            'name'      => 'required|string|max:255',
+            'status'    => 'required|in:pending,approved,rejected',
+            'message'   => 'required|string',
+        ]);
+
+        $template->update($validated);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Template updated successfully!',
+        ]);
     }
 
     /**
@@ -61,6 +84,23 @@ class TemplateController extends Controller
      */
     public function destroy(Template $template)
     {
-        //
+        $template->delete();
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Template deleted successfully!',
+        ]);
+    }
+
+    public function getByClient($clientId){
+        $templates = Template::where('client_id',$clientId)
+        ->where('status','approved')
+        ->orderBy('name')
+        ->get(['id','name','message']);
+
+        return response()->json([
+            'status' => true,
+            'templates' => $templates,
+        ]);
     }
 }

@@ -111,18 +111,18 @@
                     <span class="nav-label">Clients</span>
                 </a>
 
+
+                <a href="{{ route('templates.index') }}"
+                    class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('templates.*') ? 'active bg-primary text-white' : '' }}">
+                    <i class="bi bi-file-earmark-text fs-5 flex-shrink-0"></i>
+                    <span class="nav-label">Templates</span>
+                </a>
+
                 <a href="{{ route('campaigns.index') }}"
                     class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('campaigns.*') ? 'active bg-primary text-white' : '' }}">
                     <i class="bi bi-megaphone fs-5 flex-shrink-0"></i>
                     <span class="nav-label">Campaigns</span>
                 </a>
-
-                <a href="{{ route('templates.index') }}"
-                    class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('templates.*') ? 'active bg-primary text-white' : '' }}">
-                    <i class="bi bi-file-earmark-text fs-5 flex-shrink-0"></i>
-                     <span class="nav-label">Templates</span>
-                </a>
-
 
                 <a href="{{ route('settings.index') }}"
                     class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('settings.*') ? 'active bg-primary text-white' : '' }}">

@@ -12,6 +12,7 @@ class Campaign extends Model
 
     protected $fillable = [
         'client_id',
+        'template_id',
         'name',
         'message',
         'media_file',
@@ -36,5 +37,10 @@ class Campaign extends Model
     public function contacts()
     {
         return $this->hasMany(CampaignContact::class);
+    }
+
+    public function templates()
+    {
+        return $this->belongsTo(Template::class,'template_id');
     }
 }
