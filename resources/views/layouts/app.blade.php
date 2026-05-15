@@ -72,7 +72,7 @@
             <div class="d-flex align-items-center justify-content-between px-3 py-3 border-bottom border-secondary">
                 <span class="text-white fw-bold brand-text">
                     <i class="{{ $settings->site_icon ?? 'bi bi-whatsapp' }} text-success me-1"></i>
-                {{ $settings->site_name ?? 'WA Campaign' }}
+                    {{ $settings->site_name ?? 'WA Campaign' }}
                 </span>
                 <button class="btn btn-sm btn-outline-secondary text-white border-0" id="toggleBtn">
                     <i class="bi bi-list fs-5"></i>
@@ -116,6 +116,13 @@
                     <i class="bi bi-megaphone fs-5 flex-shrink-0"></i>
                     <span class="nav-label">Campaigns</span>
                 </a>
+
+                <a href="{{ route('templates.index') }}"
+                    class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('templates.*') ? 'active bg-primary text-white' : '' }}">
+                    <i class="bi bi-file-earmark-text fs-5 flex-shrink-0"></i>
+                     <span class="nav-label">Templates</span>
+                </a>
+
 
                 <a href="{{ route('settings.index') }}"
                     class="nav-link text-secondary px-3 py-2 rounded mx-1 {{ request()->routeIs('settings.*') ? 'active bg-primary text-white' : '' }}">

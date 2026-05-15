@@ -3,17 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 
 class Campaign extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'client_id',
         'name',
         'message',
         'media_file',
+        'sheet_file',
         'start_date',
         'end_date',
         'status',
+        'total_contacts',
+        'sent_count',
     ];
 
     protected $casts = [

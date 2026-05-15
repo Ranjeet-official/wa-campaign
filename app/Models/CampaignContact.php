@@ -12,6 +12,7 @@ class CampaignContact extends Model
         'campaign_id',
         'name',
         'phone',
+        'status'
     ];
 
     public function campaign()

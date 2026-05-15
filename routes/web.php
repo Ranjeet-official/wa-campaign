@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TemplateController;
 
 
 
@@ -63,4 +64,5 @@ Route::prefix('wa')
             ->name('settings.password.update');
 
         Route::post('campaigns/{id}/send', [CampaignController::class, 'sendCampaign']);
+        Route::resource('templates', TemplateController::class);
     });

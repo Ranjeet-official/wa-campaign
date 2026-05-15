@@ -40,6 +40,8 @@
                             <th>Start Date</th>
                             <th>End Date</th>
                             <th>Clients</th>
+                            <th>Contacts</th>
+                            <th>Status</th>
                             <th class="text-end pe-3">Actions</th>
                         </tr>
                     </thead>
@@ -58,7 +60,30 @@
                                         {{ $campaign->client->name ?? 'N/A' }}
                                     </span>
                                 </td>
-
+                                <td class="small text-center">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        {{ $campaign->total_contacts ?? 0 }}
+                                    </span>
+                                </td>
+                                <td>
+                                    @if ($campaign->status === 'completed')
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle"
+                                            id="status-{{ $campaign->id }}">Completed</span>
+                                    @elseif($campaign->status === 'running')
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle"
+                                            id="status-{{ $campaign->id }}">Running</span>
+                                    @elseif($campaign->status === 'partial')
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle"
+                                            id="status-{{ $campaign->id }}">Partial</span>
+                                    @elseif($campaign->status === 'failed')
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
+                                            id="status-{{ $campaign->id }}">Failed</span>
+                                    @else
+                                        <span
+                                            class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+                                            id="status-{{ $campaign->id }}">Draft</span>
+                                    @endif
+                                </td>
                                 <td class="text-end pe-3">
 
                                     <button type="button" class="btn btn-sm btn-outline-warning sendCampaign"
@@ -167,24 +192,58 @@
                     data: {
                         _token: '{{ csrf_token() }}'
                     },
+
+                    beforeSend: function() {
+                        $('#status-' + id)
+                            .removeClass()
+                            .addClass('badge bg-warning-subtle text-warning border border-warning-subtle')
+                            .text('Running...');
+                    },
+
                     success: function(res) {
                         btn.prop('disabled', false)
                             .html('<i class="bi bi-send"></i>');
 
                         if (res.status) {
                             showAlert('success', res.message);
+
+                            const badgeColors = {
+                                'completed': 'bg-success-subtle text-success border border-success-subtle',
+                                'failed': 'bg-danger-subtle text-danger border border-danger-subtle',
+                                'partial': 'bg-info-subtle text-info border border-info-subtle',
+                                'draft': 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+                            };
+
                             $('#status-' + id)
                                 .removeClass()
-                                .addClass('badge bg-success')
-                                .text('Running');
+                                .addClass('badge ' + (badgeColors[res.campaign_status] ??
+                                        'bg-secondary-subtle text-secondary border border-secondary-subtle'
+                                        ))
+                                .text(res.campaign_status.charAt(0).toUpperCase() + res.campaign_status
+                                    .slice(1));
+
                         } else {
                             showAlert('danger', res.message);
+
+                            $('#status-' + id)
+                                .removeClass()
+                                .addClass(
+                                    'badge bg-secondary-subtle text-secondary border border-secondary-subtle'
+                                    )
+                                .text('Draft');
                         }
                     },
+
                     error: function() {
                         btn.prop('disabled', false)
                             .html('<i class="bi bi-send"></i>');
                         showAlert('danger', 'Something went wrong. Please try again.');
+
+                        $('#status-' + id)
+                            .removeClass()
+                            .addClass(
+                                'badge bg-secondary-subtle text-secondary border border-secondary-subtle')
+                            .text('Draft');
                     }
                 });
             });

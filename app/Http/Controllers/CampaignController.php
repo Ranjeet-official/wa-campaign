@@ -19,7 +19,7 @@ class CampaignController extends Controller
 
     public function index(Request $request)
     {
-        $query = Campaign::with('client');
+        $query = Campaign::with('client')->withCount('contacts');
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -69,12 +69,20 @@ class CampaignController extends Controller
             'media_file.max'          => 'File size must not exceed 20MB.',
         ]);
 
+        $contacts = $request->contacts;
+
+        if (is_string($contacts)) {
+            $contacts = json_decode($contacts, true);
+        }
+
         $mediaPath = null;
 
         if ($request->hasFile('media_file')) {
             $mediaPath = $request->file('media_file')
                 ->store('campaigns/media', 'public');
         }
+
+
         $campaign = Campaign::create([
             'client_id'  => $request->client_id,
             'name'       => $request->name,
@@ -83,13 +91,10 @@ class CampaignController extends Controller
             'start_date' => $request->start_date,
             'end_date'   => $request->end_date,
             'status'     => 'draft',
+            'total_contacts' => !empty($contacts) ? count($contacts) : 0,
+
         ]);
 
-        $contacts = $request->contacts;
-
-        if (is_string($contacts)) {
-            $contacts = json_decode($contacts, true);
-        }
 
         if (!empty($contacts)) {
             $insert = [];
@@ -119,26 +124,6 @@ class CampaignController extends Controller
                     : []
             )
         ]);
-        // return response()->json([
-
-        //     'success' => true,
-
-        //     'message' => 'Campaign created successfully!',
-
-        //     'redirect' => route(
-        //         'campaigns.index',
-
-        //         $request->filled('client_filter')
-        //             ? [
-        //                 'client_id' => $request->client_filter,
-        //                 'success'   => 'Campaign created successfully!'
-        //             ]
-        //             : [
-        //                 'success' => 'Campaign created successfully!'
-        //             ]
-        //     )
-
-        // ]);
     }
 
     // SHOW
@@ -388,6 +373,14 @@ class CampaignController extends Controller
                 ->store('campaigns/media', 'public');
         }
 
+        $contacts = $request->contacts;
+
+        // JSON decode
+        if (is_string($contacts)) {
+
+            $contacts = json_decode($contacts, true);
+        }
+
         // Update campaign
         $campaign->update([
             'client_id'  => $request->client_id,
@@ -396,18 +389,15 @@ class CampaignController extends Controller
             'media_file' => $mediaPath,
             'start_date' => $request->start_date,
             'end_date'   => $request->end_date,
+            'status'     => 'draft',
+            'total_contacts' => !empty($contacts) ? count($contacts) : 0,
+            'sent_count'     => 0,
         ]);
 
         // Delete old contacts
         CampaignContact::where('campaign_id', $id)->delete();
 
-        $contacts = $request->contacts;
 
-        // JSON decode
-        if (is_string($contacts)) {
-
-            $contacts = json_decode($contacts, true);
-        }
 
         // Insert new contacts
         if (!empty($contacts)) {
@@ -465,9 +455,254 @@ class CampaignController extends Controller
 
 
 
+    // it my code working
+
+    // public function sendCampaign(Request $request, $id)
+    // {
+    //     $campaign = Campaign::with('contacts')->findOrFail($id);
+    //     if ($campaign->status == 'completed') {
+
+    //         return response()->json([
+    //             'status'            => false,
+    //             'message'           => 'Campaign already completed.',
+    //             'campaign_status'   => $campaign->status,
+    //         ]);
+    //     }
+
+    //     // ───────────────── Sheet Upload Contacts ─────────────────
+    //     if ($request->hasFile('sheet')) {
+
+    //         $request->validate([
+    //             'sheet' => 'required|file|mimes:xlsx,xls,csv'
+    //         ]);
+
+    //         $file = $request->file('sheet');
+
+    //         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(
+    //             $file->getPathname()
+    //         );
+
+    //         $rows = $spreadsheet->getActiveSheet()->toArray();
+
+    //         // First row = header
+    //         $header = array_map(
+    //             'strtolower',
+    //             array_map('trim', array_shift($rows))
+    //         );
+
+    //         $nameCol  = array_search('name', $header);
+    //         $phoneCol = array_search('phone', $header);
+
+    //         if ($phoneCol === false) {
+
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Phone column not found in sheet.'
+    //             ]);
+    //         }
+
+    //         $contacts = collect($rows)
+    //             ->filter(fn($row) => !empty($row[$phoneCol]))
+    //             ->map(fn($row) => (object) [
+    //                 'name'  => $nameCol !== false
+    //                     ? ($row[$nameCol] ?? '')
+    //                     : '',
+    //                 'phone' => $row[$phoneCol],
+    //             ]);
+    //     } else {
+
+    //         // DB contacts
+    //         $contacts = $campaign->contacts;
+    //     }
+
+    //     // ───────────────── Testing Mode ─────────────────
+    //     if ($request->boolean('testing')) {
+    //         $contacts = $contacts->take(2);
+    //     }
+
+    //     if ($contacts->isEmpty()) {
+
+    //         return response()->json([
+    //             'status'  => false,
+    //             'message' => 'No contacts found.'
+    //         ]);
+    //     }
+
+    //     $sent   = 0;
+    //     $failed = 0;
+
+    //     $campaign->update(['status' => 'running']);
+
+    //     foreach ($contacts as $contact) {
+
+    //         try {
+
+    //             // ───────────── Phone Format ─────────────
+    //             $phone = preg_replace('/\D/', '', $contact->phone);
+
+    //             // India format
+    //             if (strlen($phone) == 10) {
+    //                 $phone = '91' . $phone;
+    //             }
+
+    //             // ───────────── Message Replace ─────────────
+    //             $message = str_replace(
+    //                 '{name}',
+    //                 $contact->name,
+    //                 $campaign->message
+    //             );
+
+    //             // ───────────────── TEMPLATE MESSAGE ─────────────────
+    //             // $payload = [
+    //             //     'messaging_product' => 'whatsapp',
+    //             //     'to'                => $phone,
+    //             //     'type'              => 'template',
+    //             //     'template'          => [
+    //             //         'name'     => 'hello_world',
+    //             //         'language' => [
+    //             //             'code' => 'en_US'
+    //             //         ]
+    //             //     ]
+    //             // ];
+
+    //             // ───────────────── TEXT MESSAGE ─────────────────
+
+    //             $payload = [
+    //                 'messaging_product' => 'whatsapp',
+    //                 'to'                => $phone,
+    //                 'type'              => 'text',
+    //                 'text'              => [
+    //                     'body' => $message
+    //                 ]
+    //             ];
+
+
+    //             // ───────────────── MEDIA MESSAGE ─────────────────
+
+    //             // if ($campaign->media_file) {
+
+    //             //     $mediaUrl = asset('storage/' . $campaign->media_file);
+
+    //             //     $extension = strtolower(
+    //             //         pathinfo($campaign->media_file, PATHINFO_EXTENSION)
+    //             //     );
+
+    //             //     $mediaType = match (true) {
+
+    //             //         in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])
+    //             //         => 'image',
+
+    //             //         in_array($extension, ['mp4', '3gp'])
+    //             //         => 'video',
+
+    //             //         in_array($extension, ['mp3', 'ogg', 'aac'])
+    //             //         => 'audio',
+
+    //             //         default
+    //             //         => 'document',
+    //             //     };
+
+    //             //     $payload = [
+    //             //         'messaging_product' => 'whatsapp',
+    //             //         'to'                => $phone,
+    //             //         'type'              => $mediaType,
+    //             //         $mediaType          => [
+    //             //             'link' => $mediaUrl,
+    //             //         ],
+    //             //     ];
+
+    //             //     // caption only for image/video/document
+    //             //     if ($mediaType !== 'audio') {
+    //             //         $payload[$mediaType]['caption'] = $message;
+    //             //     }
+    //             // }
+
+
+    //             // ───────────────── API Request ─────────────────
+    //             $response = Http::withToken(env('WHATSAPP_TOKEN'))
+    //                 ->post(
+    //                     'https://graph.facebook.com/v25.0/' .
+    //                         env('PHONE_NUMBER_ID') .
+    //                         '/messages',
+    //                     $payload
+    //                 );
+
+    //             $result = $response->json();
+
+    //             if ($response->successful() && !empty($result['messages'])) {
+
+    //                 $sent++;
+
+    //                 CampaignContact::where('campaign_id', $campaign->id)
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status' => 'sent',
+    //                     ]);
+    //             } else {
+
+    //                 $failed++;
+
+    //                 CampaignContact::where('campaign_id', $campaign->id)
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status'   => 'failed',
+    //                     ]);
+
+    //                 \Log::error('WhatsApp Failed', [
+    //                     'phone'    => $phone,
+    //                     'response' => $result
+    //                 ]);
+    //             }
+
+    //             sleep(1);
+    //         } catch (\Exception $e) {
+
+    //             $failed++;
+
+    //             \Log::error('Campaign Error', [
+    //                 'phone' => $contact->phone,
+    //                 'error' => $e->getMessage()
+    //             ]);
+    //         }
+    //     }
+    //     // $status = 'draft'; // default
+
+    //     if ($sent == 0 && $failed > 0) {
+
+    //         $status = 'failed';
+    //     } elseif ($sent > 0 && $failed == 0) {
+
+    //         $status = 'completed';
+    //     } elseif ($sent > 0 && $failed > 0) {
+
+    //         $status = 'partial';
+    //     }
+    //     $campaign->update([
+    //         'status'         => $status,
+    //         'total_contacts' => $contacts->count(),  // ← Add karo
+    //         'sent_count'     => $sent,               // ← Add karo
+    //     ]);
+
+    //     return response()->json([
+    //         'status'  => true,
+    //         'message' => "✅ Sent: {$sent} | ❌ Failed: {$failed}",
+    //         'campaign_status' => $status,
+    //     ]);
+    // }
+
+
     public function sendCampaign(Request $request, $id)
     {
         $campaign = Campaign::with('contacts')->findOrFail($id);
+
+        // Already completed
+        if ($campaign->status == 'completed') {
+            return response()->json([
+                'status'          => false,
+                'message'         => 'Campaign already completed.',
+                'campaign_status' => $campaign->status,
+            ]);
+        }
 
         // ───────────────── Sheet Upload Contacts ─────────────────
         if ($request->hasFile('sheet')) {
@@ -476,25 +711,15 @@ class CampaignController extends Controller
                 'sheet' => 'required|file|mimes:xlsx,xls,csv'
             ]);
 
-            $file = $request->file('sheet');
+            $file        = $request->file('sheet');
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
+            $rows        = $spreadsheet->getActiveSheet()->toArray();
 
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(
-                $file->getPathname()
-            );
-
-            $rows = $spreadsheet->getActiveSheet()->toArray();
-
-            // First row = header
-            $header = array_map(
-                'strtolower',
-                array_map('trim', array_shift($rows))
-            );
-
+            $header   = array_map('strtolower', array_map('trim', array_shift($rows)));
             $nameCol  = array_search('name', $header);
             $phoneCol = array_search('phone', $header);
 
             if ($phoneCol === false) {
-
                 return response()->json([
                     'status'  => false,
                     'message' => 'Phone column not found in sheet.'
@@ -504,14 +729,10 @@ class CampaignController extends Controller
             $contacts = collect($rows)
                 ->filter(fn($row) => !empty($row[$phoneCol]))
                 ->map(fn($row) => (object) [
-                    'name'  => $nameCol !== false
-                        ? ($row[$nameCol] ?? '')
-                        : '',
+                    'name'  => $nameCol !== false ? ($row[$nameCol] ?? '') : '',
                     'phone' => $row[$phoneCol],
                 ]);
         } else {
-
-            // DB contacts
             $contacts = $campaign->contacts;
         }
 
@@ -521,7 +742,6 @@ class CampaignController extends Controller
         }
 
         if ($contacts->isEmpty()) {
-
             return response()->json([
                 'status'  => false,
                 'message' => 'No contacts found.'
@@ -531,113 +751,160 @@ class CampaignController extends Controller
         $sent   = 0;
         $failed = 0;
 
+        $campaign->update(['status' => 'running']);
+
+        // ───────────────── LOOP CONTACTS ─────────────────
         foreach ($contacts as $contact) {
 
             try {
 
-                // ───────────── Phone Format ─────────────
+                // ── Phone Format ──
                 $phone = preg_replace('/\D/', '', $contact->phone);
-
-                // India format
                 if (strlen($phone) == 10) {
                     $phone = '91' . $phone;
                 }
 
-                // ───────────── Message Replace ─────────────
-                $message = str_replace(
-                    '{name}',
-                    $contact->name,
-                    $campaign->message
-                );
-
-                // ───────────────── TEMPLATE MESSAGE ─────────────────
-                // $payload = [
-                //     'messaging_product' => 'whatsapp',
-                //     'to'                => $phone,
-                //     'type'              => 'template',
-                //     'template'          => [
-                //         'name'     => 'hello_world',
-                //         'language' => [
-                //             'code' => 'en_US'
-                //         ]
-                //     ]
-                // ];
-
-                // ───────────────── TEXT MESSAGE ─────────────────
-
-                $payload = [
-                    'messaging_product' => 'whatsapp',
-                    'to'                => $phone,
-                    'type'              => 'text',
-                    'text'              => [
-                        'body' => $message
-                    ]
-                ];
-
+                // ── Message Replace ──
+                $message = str_replace('{name}', $contact->name, $campaign->message ?? '');
 
                 // ───────────────── MEDIA MESSAGE ─────────────────
-                /*
-            if ($campaign->media_file) {
+                if ($campaign->media_file) {
 
-                $mediaUrl = asset('storage/' . $campaign->media_file);
+                    $filePath = storage_path('app/public/' . $campaign->media_file);
 
-                $extension = strtolower(
-                    pathinfo($campaign->media_file, PATHINFO_EXTENSION)
-                );
+                    if (file_exists($filePath)) {
 
-                $mediaType = match (true) {
+                        // Upload media to Meta
+                        $uploadResponse = Http::withToken(env('WHATSAPP_TOKEN'))
+                            ->attach('file', file_get_contents($filePath), basename($filePath))
+                            ->post(
+                                'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/media',
+                                ['messaging_product' => 'whatsapp']
+                            );
 
-                    in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])
-                        => 'image',
+                        $uploadResult = $uploadResponse->json();
 
-                    in_array($extension, ['mp4', '3gp'])
-                        => 'video',
+                        if (!empty($uploadResult['id'])) {
 
-                    in_array($extension, ['mp3', 'ogg', 'aac'])
-                        => 'audio',
+                            $mediaId   = $uploadResult['id'];
+                            $extension = strtolower(pathinfo($campaign->media_file, PATHINFO_EXTENSION));
 
-                    default
-                        => 'document',
-                };
+                            $mediaType = match (true) {
+                                in_array($extension, ['jpg', 'jpeg', 'png', 'webp']) => 'image',
+                                in_array($extension, ['mp4', '3gp', 'mov'])          => 'video',
+                                in_array($extension, ['mp3', 'ogg', 'aac', 'm4a'])   => 'audio',
+                                default                                               => 'document',
+                            };
 
-                $payload = [
-                    'messaging_product' => 'whatsapp',
-                    'to'                => $phone,
-                    'type'              => $mediaType,
-                    $mediaType          => [
-                        'link' => $mediaUrl,
-                    ],
-                ];
+                            // ── Media Payload ──
+                            $payload = [
+                                'messaging_product' => 'whatsapp',
+                                'to'                => $phone,
+                                'type'              => $mediaType,
+                                $mediaType          => ['id' => $mediaId],
+                            ];
 
-                // caption only for image/video/document
-                if ($mediaType !== 'audio') {
-                    $payload[$mediaType]['caption'] = $message;
+                            // Image/Video → caption support hai
+                            if (in_array($mediaType, ['image', 'video']) && !empty($message)) {
+                                $payload[$mediaType]['caption'] = $message;
+                            }
+
+                            // Document → filename add karo
+                            if ($mediaType === 'document') {
+                                $payload['document']['filename'] = basename($campaign->media_file);
+                            }
+
+                            // ── Send Media ──
+                            $response = Http::withToken(env('WHATSAPP_TOKEN'))
+                                ->post(
+                                    'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/messages',
+                                    $payload
+                                );
+
+                            $result = $response->json();
+
+                            // Document/Audio → text message alag se bhejo
+                            if (
+                                in_array($mediaType, ['document', 'audio']) &&
+                                !empty($message) &&
+                                $response->successful()
+                            ) {
+                                Http::withToken(env('WHATSAPP_TOKEN'))
+                                    ->post(
+                                        'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/messages',
+                                        [
+                                            'messaging_product' => 'whatsapp',
+                                            'to'                => $phone,
+                                            'type'              => 'text',
+                                            'text'              => ['body' => $message],
+                                        ]
+                                    );
+                            }
+                        } else {
+                            // Upload failed → fallback text
+                            $response = Http::withToken(env('WHATSAPP_TOKEN'))
+                                ->post(
+                                    'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/messages',
+                                    [
+                                        'messaging_product' => 'whatsapp',
+                                        'to'                => $phone,
+                                        'type'              => 'text',
+                                        'text'              => ['body' => $message],
+                                    ]
+                                );
+
+                            $result = $response->json();
+                            \Log::error('Media Upload Failed', ['response' => $uploadResult]);
+                        }
+                    } else {
+                        // File missing → fallback text
+                        $response = Http::withToken(env('WHATSAPP_TOKEN'))
+                            ->post(
+                                'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/messages',
+                                [
+                                    'messaging_product' => 'whatsapp',
+                                    'to'                => $phone,
+                                    'type'              => 'text',
+                                    'text'              => ['body' => $message],
+                                ]
+                            );
+
+                        $result = $response->json();
+                        \Log::error('Media File Not Found', ['path' => $filePath]);
+                    }
+                } else {
+                    // ───────────────── TEXT ONLY ─────────────────
+                    $response = Http::withToken(env('WHATSAPP_TOKEN'))
+                        ->post(
+                            'https://graph.facebook.com/v25.0/' . env('PHONE_NUMBER_ID') . '/messages',
+                            [
+                                'messaging_product' => 'whatsapp',
+                                'to'                => $phone,
+                                'type'              => 'text',
+                                'text'              => ['body' => $message],
+                            ]
+                        );
+
+                    $result = $response->json();
                 }
-            }
-            */
 
-                // ───────────────── API Request ─────────────────
-                $response = Http::withToken(env('WHATSAPP_TOKEN'))
-                    ->post(
-                        'https://graph.facebook.com/v25.0/' .
-                            env('PHONE_NUMBER_ID') .
-                            '/messages',
-                        $payload
-                    );
-
-                $result = $response->json();
-
-                if ($response->successful() && isset($result['messages'])) {
+                // ───────────────── SUCCESS CHECK ─────────────────
+                if ($response->successful() && !empty($result['messages'])) {
 
                     $sent++;
+
+                    CampaignContact::where('campaign_id', $campaign->id)
+                        ->where('phone', $contact->phone)
+                        ->update(['status' => 'sent']);
                 } else {
 
                     $failed++;
 
-                    \Log::error('WhatsApp Failed', [
-                        'phone'    => $phone,
-                        'response' => $result
-                    ]);
+                    CampaignContact::where('campaign_id', $campaign->id)
+                        ->where('phone', $contact->phone)
+                        ->update(['status' => 'failed']);
+
+                    \Log::error('WhatsApp Failed', ['phone' => $phone, 'response' => $result]);
                 }
 
                 sleep(1);
@@ -645,23 +912,643 @@ class CampaignController extends Controller
 
                 $failed++;
 
-                \Log::error('Campaign Error', [
-                    'phone' => $contact->phone,
-                    'error' => $e->getMessage()
-                ]);
+                CampaignContact::where('campaign_id', $campaign->id)
+                    ->where('phone', $contact->phone)
+                    ->update(['status' => 'failed']);
+
+                \Log::error('Campaign Error', ['phone' => $contact->phone, 'error' => $e->getMessage()]);
             }
         }
 
-        // ───────────────── Campaign Status ─────────────────
+        // ───────────────── FINAL STATUS ─────────────────
+        $status = 'draft';
+
+        if ($sent == 0 && $failed > 0) {
+            $status = 'failed';
+        } elseif ($sent > 0 && $failed == 0) {
+            $status = 'completed';
+        } elseif ($sent > 0 && $failed > 0) {
+            $status = 'partial';
+        }
+
         $campaign->update([
-            'status' => 'completed'
+            'status'         => $status,
+            'total_contacts' => $contacts->count(),
+            'sent_count'     => $sent,
         ]);
 
         return response()->json([
-            'status'  => true,
-            'message' => "✅ Sent: {$sent} | ❌ Failed: {$failed}"
+            'status'          => true,
+            'message'         => "✅ Sent: {$sent} | ❌ Failed: {$failed}",
+            'campaign_status' => $status,
         ]);
     }
+
+
+
+    // ye bhi working hai but first copy chatgpt
+    // public function sendCampaign(Request $request, $id)
+    // {
+
+    //     $campaign = Campaign::with('contacts')->findOrFail($id);
+
+    //     // Already completed
+    //     if ($campaign->status == 'completed') {
+
+    //         return response()->json([
+    //             'status'          => false,
+    //             'message'         => 'Campaign already completed.',
+    //             'campaign_status' => $campaign->status,
+    //         ]);
+    //     }
+
+    //     // ───────────────── Sheet Upload Contacts ─────────────────
+    //     if ($request->hasFile('sheet')) {
+
+    //         $request->validate([
+    //             'sheet' => 'required|file|mimes:xlsx,xls,csv'
+    //         ]);
+
+    //         $file = $request->file('sheet');
+
+    //         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(
+    //             $file->getPathname()
+    //         );
+
+    //         $rows = $spreadsheet->getActiveSheet()->toArray();
+
+    //         // First row = header
+    //         $header = array_map(
+    //             'strtolower',
+    //             array_map('trim', array_shift($rows))
+    //         );
+
+    //         $nameCol  = array_search('name', $header);
+    //         $phoneCol = array_search('phone', $header);
+
+    //         if ($phoneCol === false) {
+
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Phone column not found in sheet.'
+    //             ]);
+    //         }
+
+    //         $contacts = collect($rows)
+    //             ->filter(fn($row) => !empty($row[$phoneCol]))
+    //             ->map(fn($row) => (object) [
+    //                 'name'  => $nameCol !== false
+    //                     ? ($row[$nameCol] ?? '')
+    //                     : '',
+    //                 'phone' => $row[$phoneCol],
+    //             ]);
+    //     } else {
+
+    //         // DB contacts
+    //         $contacts = $campaign->contacts;
+    //     }
+
+    //     // ───────────────── Testing Mode ─────────────────
+    //     if ($request->boolean('testing')) {
+
+    //         $contacts = $contacts->take(2);
+    //     }
+
+    //     if ($contacts->isEmpty()) {
+
+    //         return response()->json([
+    //             'status'  => false,
+    //             'message' => 'No contacts found.'
+    //         ]);
+    //     }
+
+
+    //     // ── Yahan add karo ──
+
+
+    //     $sent   = 0;
+    //     $failed = 0;
+
+    //     // Running status
+    //     $campaign->update([
+    //         'status' => 'running'
+    //     ]);
+
+    //     // ───────────────── LOOP CONTACTS ─────────────────
+    //     foreach ($contacts as $contact) {
+
+    //         try {
+
+    //             // ───────────── Phone Format ─────────────
+    //             $phone = preg_replace('/\D/', '', $contact->phone);
+
+    //             if (strlen($phone) == 10) {
+
+    //                 $phone = '91' . $phone;
+    //             }
+
+    //             // ───────────── Message Replace ─────────────
+    //             $message = str_replace(
+    //                 '{name}',
+    //                 $contact->name,
+    //                 $campaign->message
+    //             );
+
+    //             // ───────────────── MEDIA MESSAGE ─────────────────
+
+    //             if ($campaign->media_file) {
+
+    //                 // Local file path
+    //                 $filePath = storage_path(
+    //                     'app/public/' . $campaign->media_file
+    //                 );
+
+    //                 // File exists check
+    //                 if (file_exists($filePath)) {
+
+    //                     // ───────── Upload media to Meta ─────────
+    //                     $uploadResponse = Http::withToken(env('WHATSAPP_TOKEN'))
+    //                         ->attach(
+    //                             'file',
+    //                             file_get_contents($filePath),
+    //                             basename($filePath)
+    //                         )
+    //                         ->post(
+    //                             'https://graph.facebook.com/v25.0/' .
+    //                                 env('PHONE_NUMBER_ID') .
+    //                                 '/media',
+    //                             [
+    //                                 'messaging_product' => 'whatsapp',
+    //                             ]
+    //                         );
+
+    //                     $uploadResult = $uploadResponse->json();
+
+
+
+    //                     // \Log::info('Upload Result', ['result' => $uploadResult]);
+
+    //                     // Media uploaded successfully
+    //                     if (!empty($uploadResult['id'])) {
+
+    //                         $mediaId = $uploadResult['id'];
+
+    //                         // Detect media type
+    //                         $extension = strtolower(
+    //                             pathinfo(
+    //                                 $campaign->media_file,
+    //                                 PATHINFO_EXTENSION
+    //                             )
+    //                         );
+
+    //                         $mediaType = match (true) {
+
+    //                             in_array(
+    //                                 $extension,
+    //                                 ['jpg', 'jpeg', 'png', 'webp']
+    //                             )
+    //                             => 'image',
+
+    //                             in_array(
+    //                                 $extension,
+    //                                 ['mp4', '3gp']
+    //                             )
+    //                             => 'video',
+
+    //                             in_array(
+    //                                 $extension,
+    //                                 ['mp3', 'ogg', 'aac']
+    //                             )
+    //                             => 'audio',
+
+    //                             default
+    //                             => 'document',
+    //                         };
+
+    //                         // ───────── Media payload ─────────
+    //                         $payload = [
+    //                             'messaging_product' => 'whatsapp',
+    //                             'to'                => $phone,
+    //                             'type'              => $mediaType,
+    //                             $mediaType          => [
+    //                                 'id' => $mediaId,
+    //                             ],
+    //                         ];
+
+    //                         // Caption only for image/video
+    //                         if (
+    //                             in_array(
+    //                                 $mediaType,
+    //                                 ['image', 'video']
+    //                             ) &&
+    //                             !empty($message)
+    //                         ) {
+
+    //                             $payload[$mediaType]['caption'] =
+    //                                 $message;
+    //                         }
+
+    //                         // Filename for documents
+    //                         if ($mediaType == 'document') {
+
+    //                             $payload['document']['filename'] =
+    //                                 basename($campaign->media_file);
+    //                         }
+    //                     } else {
+
+    //                         // Upload failed → fallback text message
+    //                         $payload = [
+    //                             'messaging_product' => 'whatsapp',
+    //                             'to'                => $phone,
+    //                             'type'              => 'text',
+    //                             'text'              => [
+    //                                 'body' => $message
+    //                             ]
+    //                         ];
+
+    //                         \Log::error(
+    //                             'Media Upload Failed',
+    //                             [
+    //                                 'response' => $uploadResult
+    //                             ]
+    //                         );
+    //                     }
+    //                 } else {
+
+    //                     // File missing → fallback text message
+    //                     $payload = [
+    //                         'messaging_product' => 'whatsapp',
+    //                         'to'                => $phone,
+    //                         'type'              => 'text',
+    //                         'text'              => [
+    //                             'body' => $message
+    //                         ]
+    //                     ];
+
+    //                     \Log::error(
+    //                         'Media File Not Found',
+    //                         [
+    //                             'path' => $filePath
+    //                         ]
+    //                     );
+    //                 }
+    //             } else {
+
+    //                 // ───────────────── TEXT MESSAGE ─────────────────
+
+    //                 $payload = [
+    //                     'messaging_product' => 'whatsapp',
+    //                     'to'                => $phone,
+    //                     'type'              => 'text',
+    //                     'text'              => [
+    //                         'body' => $message
+    //                     ]
+    //                 ];
+    //             }
+
+    //             // ───────────────── SEND MESSAGE ─────────────────
+    //             $response = Http::withToken(env('WHATSAPP_TOKEN'))
+    //                 ->post(
+    //                     'https://graph.facebook.com/v25.0/' .
+    //                         env('PHONE_NUMBER_ID') .
+    //                         '/messages',
+    //                     $payload
+    //                 );
+
+    //             $result = $response->json();
+
+    //             // ───────────────── SUCCESS ─────────────────
+    //             if (
+    //                 $response->successful() &&
+    //                 !empty($result['messages'])
+    //             ) {
+
+    //                 $sent++;
+
+    //                 CampaignContact::where(
+    //                     'campaign_id',
+    //                     $campaign->id
+    //                 )
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status' => 'sent',
+    //                     ]);
+    //             } else {
+
+    //                 $failed++;
+
+    //                 CampaignContact::where(
+    //                     'campaign_id',
+    //                     $campaign->id
+    //                 )
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status' => 'failed',
+    //                     ]);
+
+    //                 \Log::error('WhatsApp Failed', [
+    //                     'phone'    => $phone,
+    //                     'response' => $result
+    //                 ]);
+    //             }
+
+    //             sleep(1);
+    //         } catch (\Exception $e) {
+
+    //             $failed++;
+
+    //             CampaignContact::where(
+    //                 'campaign_id',
+    //                 $campaign->id
+    //             )
+    //                 ->where('phone', $contact->phone)
+    //                 ->update([
+    //                     'status' => 'failed',
+    //                 ]);
+
+    //             \Log::error('Campaign Error', [
+    //                 'phone' => $contact->phone,
+    //                 'error' => $e->getMessage()
+    //             ]);
+    //         }
+    //     }
+
+    //     // ───────────────── FINAL STATUS ─────────────────
+    //     $status = 'draft';
+
+    //     if ($sent == 0 && $failed > 0) {
+
+    //         $status = 'failed';
+    //     } elseif ($sent > 0 && $failed == 0) {
+
+    //         $status = 'completed';
+    //     } elseif ($sent > 0 && $failed > 0) {
+
+    //         $status = 'partial';
+    //     }
+
+    //     // ───────────────── UPDATE CAMPAIGN ─────────────────
+    //     $campaign->update([
+    //         'status'         => $status,
+    //         'total_contacts' => $contacts->count(),
+    //         'sent_count'     => $sent,
+    //     ]);
+
+    //     // ───────────────── RESPONSE ─────────────────
+    //     return response()->json([
+    //         'status'          => true,
+    //         'message'         => "✅ Sent: {$sent} | ❌ Failed: {$failed}",
+    //         'campaign_status' => $status,
+    //     ]);
+    // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // public function sendCampaign(Request $request, $id)
+    // {
+    //     $campaign = Campaign::with('contacts')->findOrFail($id);
+    //     if ($campaign->status == 'completed') {
+
+    //         return response()->json([
+    //             'status'            => false,
+    //             'message'           => 'Campaign already completed.',
+    //             'campaign_status'   => $campaign->status,
+    //         ]);
+    //     }
+
+    //     // ───────────────── Sheet Upload Contacts ─────────────────
+    //     if ($request->hasFile('sheet')) {
+
+    //         $request->validate([
+    //             'sheet' => 'required|file|mimes:xlsx,xls,csv'
+    //         ]);
+
+    //         $file = $request->file('sheet');
+
+    //         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(
+    //             $file->getPathname()
+    //         );
+
+    //         $rows = $spreadsheet->getActiveSheet()->toArray();
+
+    //         // First row = header
+    //         $header = array_map(
+    //             'strtolower',
+    //             array_map('trim', array_shift($rows))
+    //         );
+
+    //         $nameCol  = array_search('name', $header);
+    //         $phoneCol = array_search('phone', $header);
+
+    //         if ($phoneCol === false) {
+
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Phone column not found in sheet.'
+    //             ]);
+    //         }
+
+    //         $contacts = collect($rows)
+    //             ->filter(fn($row) => !empty($row[$phoneCol]))
+    //             ->map(fn($row) => (object) [
+    //                 'name'  => $nameCol !== false
+    //                     ? ($row[$nameCol] ?? '')
+    //                     : '',
+    //                 'phone' => $row[$phoneCol],
+    //             ]);
+    //     } else {
+
+    //         // DB contacts
+    //         $contacts = $campaign->contacts;
+    //     }
+
+    //     // ───────────────── Testing Mode ─────────────────
+    //     if ($request->boolean('testing')) {
+    //         $contacts = $contacts->take(2);
+    //     }
+
+    //     if ($contacts->isEmpty()) {
+
+    //         return response()->json([
+    //             'status'  => false,
+    //             'message' => 'No contacts found.'
+    //         ]);
+    //     }
+
+    //     $sent   = 0;
+    //     $failed = 0;
+
+    //     $campaign->update(['status' => 'running']);
+
+    //     foreach ($contacts as $contact) {
+
+    //         try {
+
+    //             // ───────────── Phone Format ─────────────
+    //             $phone = preg_replace('/\D/', '', $contact->phone);
+
+    //             // India format
+    //             if (strlen($phone) == 10) {
+    //                 $phone = '91' . $phone;
+    //             }
+
+    //             // ───────────── Message Replace ─────────────
+    //             $message = str_replace(
+    //                 '{name}',
+    //                 $contact->name,
+    //                 $campaign->message
+    //             );
+
+    //             // ───────────────── TEMPLATE MESSAGE ─────────────────
+    //             // $payload = [
+    //             //     'messaging_product' => 'whatsapp',
+    //             //     'to'                => $phone,
+    //             //     'type'              => 'template',
+    //             //     'template'          => [
+    //             //         'name'     => 'hello_world',
+    //             //         'language' => [
+    //             //             'code' => 'en_US'
+    //             //         ]
+    //             //     ]
+    //             // ];
+
+    //             // ───────────────── TEXT MESSAGE ─────────────────
+
+    //             $payload = [
+    //                 'messaging_product' => 'whatsapp',
+    //                 'to'                => $phone,
+    //                 'type'              => 'text',
+    //                 'text'              => [
+    //                     'body' => $message
+    //                 ]
+    //             ];
+
+
+    //             // ───────────────── MEDIA MESSAGE ─────────────────
+
+    //             // if ($campaign->media_file) {
+
+    //             //     $mediaUrl = asset('storage/' . $campaign->media_file);
+
+    //             //     $extension = strtolower(
+    //             //         pathinfo($campaign->media_file, PATHINFO_EXTENSION)
+    //             //     );
+
+    //             //     $mediaType = match (true) {
+
+    //             //         in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])
+    //             //         => 'image',
+
+    //             //         in_array($extension, ['mp4', '3gp'])
+    //             //         => 'video',
+
+    //             //         in_array($extension, ['mp3', 'ogg', 'aac'])
+    //             //         => 'audio',
+
+    //             //         default
+    //             //         => 'document',
+    //             //     };
+
+    //             //     $payload = [
+    //             //         'messaging_product' => 'whatsapp',
+    //             //         'to'                => $phone,
+    //             //         'type'              => $mediaType,
+    //             //         $mediaType          => [
+    //             //             'link' => $mediaUrl,
+    //             //         ],
+    //             //     ];
+
+    //             //     // caption only for image/video/document
+    //             //     if ($mediaType !== 'audio') {
+    //             //         $payload[$mediaType]['caption'] = $message;
+    //             //     }
+    //             // }
+
+
+    //             // ───────────────── API Request ─────────────────
+    //             $response = Http::withToken(env('WHATSAPP_TOKEN'))
+    //                 ->post(
+    //                     'https://graph.facebook.com/v25.0/' .
+    //                         env('PHONE_NUMBER_ID') .
+    //                         '/messages',
+    //                     $payload
+    //                 );
+
+    //             $result = $response->json();
+
+    //             if ($response->successful() && !empty($result['messages'])) {
+
+    //                 $sent++;
+
+    //                 CampaignContact::where('campaign_id', $campaign->id)
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status' => 'sent',
+    //                     ]);
+    //             } else {
+
+    //                 $failed++;
+
+    //                 CampaignContact::where('campaign_id', $campaign->id)
+    //                     ->where('phone', $contact->phone)
+    //                     ->update([
+    //                         'status'   => 'failed',
+    //                     ]);
+
+    //                 \Log::error('WhatsApp Failed', [
+    //                     'phone'    => $phone,
+    //                     'response' => $result
+    //                 ]);
+    //             }
+
+    //             sleep(1);
+    //         } catch (\Exception $e) {
+
+    //             $failed++;
+
+    //             \Log::error('Campaign Error', [
+    //                 'phone' => $contact->phone,
+    //                 'error' => $e->getMessage()
+    //             ]);
+    //         }
+    //     }
+    //     // $status = 'draft'; // default
+
+    //     if ($sent == 0 && $failed > 0) {
+
+    //         $status = 'failed';
+    //     } elseif ($sent > 0 && $failed == 0) {
+
+    //         $status = 'completed';
+    //     } elseif ($sent > 0 && $failed > 0) {
+
+    //         $status = 'partial';
+    //     }
+    //     $campaign->update([
+    //         'status'         => $status,
+    //         'total_contacts' => $contacts->count(),  // ← Add karo
+    //         'sent_count'     => $sent,               // ← Add karo
+    //     ]);
+
+    //     return response()->json([
+    //         'status'  => true,
+    //         'message' => "✅ Sent: {$sent} | ❌ Failed: {$failed}",
+    //         'campaign_status' => $status,
+    //     ]);
+    // }
 
 
 
