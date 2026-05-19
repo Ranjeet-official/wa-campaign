@@ -15,9 +15,8 @@
 
         <div class="card shadow-sm">
             <div class="card-body">
-                <form id="editTemplateForm" novalidate>
+                <form id="editTemplateForm">
                     @csrf
-                    @method('PUT')
                     <div class="row g-3">
 
                         <div class="col-md-6">
@@ -38,26 +37,43 @@
                             <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" value="{{ $template->name }}"
                                 placeholder="e.g. order_confirmation">
-                            <div class="invalid-feedback" id="err_name"></div>
+                            <small class="text-muted">Sirf lowercase, numbers aur underscore allowed</small>
+                            <div class="invalid-feedback d-block" id="err_name"></div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
-                            <select name="status" class="form-select">
-                                <option value="pending" {{ $template->status === 'pending' ? 'selected' : '' }}>Pending
+                            <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
+                            <select name="category" class="form-select">
+                                <option value="">— Select Category —</option>
+                                <option value="MARKETING" {{ $template->category == 'MARKETING' ? 'selected' : '' }}>
+                                    Marketing</option>
+                                <option value="UTILITY" {{ $template->category == 'UTILITY' ? 'selected' : '' }}>Utility
                                 </option>
-                                <option value="approved" {{ $template->status === 'approved' ? 'selected' : '' }}>Approved
-                                </option>
-                                <option value="rejected" {{ $template->status === 'rejected' ? 'selected' : '' }}>Rejected
-                                </option>
+                                <option value="AUTHENTICATION"
+                                    {{ $template->category == 'AUTHENTICATION' ? 'selected' : '' }}>Authentication</option>
                             </select>
-                            <div class="invalid-feedback" id="err_status"></div>
+                            <div class="invalid-feedback d-block" id="err_category"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Language <span class="text-danger">*</span></label>
+                            <select name="language" class="form-select">
+                                <option value="en" {{ $template->language == 'en' ? 'selected' : '' }}>English</option>
+                                <option value="en_US" {{ $template->language == 'en_US' ? 'selected' : '' }}>English (US)
+                                </option>
+                                <option value="hi" {{ $template->language == 'hi' ? 'selected' : '' }}>Hindi</option>
+                            </select>
+                            <div class="invalid-feedback d-block" id="err_language"></div>
                         </div>
 
                         <div class="col-md-12">
                             <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
-                            <textarea name="message" class="form-control" rows="5" placeholder="Enter your message here...">{{ $template->message }}</textarea>
-                            <div class="invalid-feedback" id="err_message"></div>
+                            <small class="text-muted d-block mb-1">
+                                Use <code>{name}</code> for recipient's name — automatically replaced during campaign.
+                            </small>
+                            <textarea name="message" rows="5" class="form-control"
+                                placeholder="e.g. Hello {name}, your request has been received. Our team will contact you shortly.">{{ $template->message }}</textarea>
+                            <div class="invalid-feedback d-block" id="err_message"></div>
                         </div>
 
                     </div>
@@ -81,6 +97,12 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            });
 
             function clearErrors() {
                 $('.form-control, .form-select').removeClass('is-invalid');
@@ -106,23 +128,20 @@
                 $.ajax({
                     url: '{{ route('templates.update', $template) }}',
                     type: 'POST',
-                    data: $(this).serialize(),
+                    data: $(this).serialize() + '&_method=PUT',
                     success: function(res) {
                         if (res.status) {
                             window.location.href = '{{ route('templates.index') }}?success=' +
                                 encodeURIComponent(res.message ??
                                     'Template updated successfully!');
-                        } else {
-                            btn.prop('disabled', false).html(
-                                '<i class="bi bi-save me-1"></i> Update Template'
-                            );
                         }
                     },
                     error: function(xhr) {
-                        if (xhr.status === 422) {
-                            showErrors(xhr.responseJSON.errors);
+                        const res = xhr.responseJSON;
+                        if (xhr.status === 422 && res.errors) {
+                            showErrors(res.errors);
                         } else {
-                            alert('Something went wrong. Please try again.');
+                            alert(res.message ?? 'Something went wrong.');
                         }
                         btn.prop('disabled', false).html(
                             '<i class="bi bi-save me-1"></i> Update Template'

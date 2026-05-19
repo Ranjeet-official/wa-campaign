@@ -167,8 +167,16 @@
                                 .html('<i class="bi bi-trash"></i>');
                         }
                     },
-                    error: function() {
-                        showAlert('danger', 'Delete failed.');
+                    error: function(xhr) {
+
+                        let message = 'Delete failed.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+
+                        showAlert('danger', message);
+
                         btn.prop('disabled', false)
                             .html('<i class="bi bi-trash"></i>');
                     }

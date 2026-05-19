@@ -87,7 +87,7 @@
                                 <td class="text-end pe-3">
 
                                     <button type="button" class="btn btn-sm btn-outline-warning sendCampaign"
-                                        data-id="{{ $campaign->id }}" title="Send Campaign">
+                                        data-id="{{ $campaign->id }}" title="Run Campaign">
                                         <i class="bi bi-send"></i>
                                     </button>
                                     <a href="{{ route('campaigns.show', ['campaign' => $campaign->id, 'client_id' => request('client_id')]) }}"

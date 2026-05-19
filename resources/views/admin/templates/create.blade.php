@@ -15,7 +15,7 @@
 
         <div class="card shadow-sm">
             <div class="card-body">
-                <form id="createTemplateForm" novalidate>
+                <form id="createTemplateForm">
                     @csrf
                     <div class="row g-3">
 
@@ -24,7 +24,8 @@
                             <select name="client_id" class="form-select">
                                 <option value="">— Select Client —</option>
                                 @foreach ($clients as $client)
-                                    <option value="{{ $client->id }}">{{ $client->name }} ({{ $client->company }})
+                                    <option value="{{ $client->id }}">
+                                        {{ $client->name }} ({{ $client->company }})
                                     </option>
                                 @endforeach
                             </select>
@@ -34,23 +35,39 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" placeholder="e.g. order_confirmation">
-                            <div class="invalid-feedback" id="err_name"></div>
+                            <small class="text-muted">Sirf lowercase, numbers aur underscore allowed</small>
+                            <div class="invalid-feedback d-block" id="err_name"></div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
-                            <select name="status" class="form-select">
-                                <option value="pending" selected>Pending</option>
-                                <option value="approved">Approved</option>
-                                <option value="rejected">Rejected</option>
+                            <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
+                            <select name="category" class="form-select">
+                                <option value="">— Select Category —</option>
+                                <option value="MARKETING">Marketing</option>
+                                <option value="UTILITY">Utility</option>
+                                <option value="AUTHENTICATION">Authentication</option>
                             </select>
-                            <div class="invalid-feedback" id="err_status"></div>
+                            <div class="invalid-feedback d-block" id="err_category"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Language <span class="text-danger">*</span></label>
+                            <select name="language" class="form-select">
+                                <option value="en" selected>English</option>
+                                <option value="en_US">English (US)</option>
+                                <option value="hi">Hindi</option>
+                            </select>
+                            <div class="invalid-feedback d-block" id="err_language"></div>
                         </div>
 
                         <div class="col-md-12">
                             <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
-                            <textarea name="message" class="form-control" rows="5" placeholder="Enter your message here..."></textarea>
-                            <div class="invalid-feedback" id="err_message"></div>
+                            <small class="text-muted d-block mb-1">
+                                Use <code>{name}</code> for recipient's name — automatically replaced during campaign.
+                            </small>
+                            <textarea name="message" rows="5" class="form-control"
+                                placeholder="e.g. Hello {name}, your request has been received. Our team will contact you shortly."></textarea>
+                            <div class="invalid-feedback d-block" id="err_message"></div>
                         </div>
 
                     </div>
@@ -74,6 +91,12 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            });
 
             function clearErrors() {
                 $('.form-control, .form-select').removeClass('is-invalid');
@@ -104,18 +127,15 @@
                         if (res.status) {
                             window.location.href = '{{ route('templates.index') }}?success=' +
                                 encodeURIComponent(res.message ??
-                                    'Template created successfully!');
-                        } else {
-                            btn.prop('disabled', false).html(
-                                '<i class="bi bi-save me-1"></i> Save Template'
-                            );
+                                    'Template Create successfully!');
                         }
                     },
                     error: function(xhr) {
-                        if (xhr.status === 422) {
-                            showErrors(xhr.responseJSON.errors);
+                        const res = xhr.responseJSON;
+                        if (xhr.status === 422 && res.errors) {
+                            showErrors(res.errors);
                         } else {
-                            alert('Something went wrong. Please try again.');
+                            alert(res.message ?? 'Something went wrong.');
                         }
                         btn.prop('disabled', false).html(
                             '<i class="bi bi-save me-1"></i> Save Template'

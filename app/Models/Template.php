@@ -22,9 +22,9 @@ class Template extends Model
         'status',
     ];
 
-    // protected $casts = [
-    //     'variables' => 'array',
-    // ];
+    protected $casts = [
+        'variables' => 'array',
+    ];
 
     /*
     |--------------------------------------------------------------------------

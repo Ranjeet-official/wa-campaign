@@ -116,6 +116,40 @@
                 </div>
             </div>
 
+            @php
+                $sentCount = $campaign->contacts->where('status', 'sent')->count();
+                $failedCount = $campaign->contacts->where('status', 'failed')->count();
+                $pendingCount = $campaign->contacts->where('status', 'pending')->count();
+                $totalCount = $campaign->contacts->count();
+            @endphp
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3">
+                        <div class="fs-3 fw-bold text-secondary">{{ $totalCount }}</div>
+                        <small class="text-muted">Total</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3">
+                        <div class="fs-3 fw-bold text-success">{{ $sentCount }}</div>
+                        <small class="text-muted">Sent</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3">
+                        <div class="fs-3 fw-bold text-danger">{{ $failedCount }}</div>
+                        <small class="text-muted">Failed</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3">
+                        <div class="fs-3 fw-bold text-warning">{{ $pendingCount }}</div>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                </div>
+            </div>
+
 
 
             {{-- Contacts (Excel Data) --}}

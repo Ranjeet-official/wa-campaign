@@ -143,29 +143,14 @@
 
         </div>
 
-        <div class="flex-grow-1">
+        <div class="flex-grow-1 d-flex flex-column" style="min-height: 100vh; overflow: hidden;">
 
-            <nav class="navbar bg-white border-bottom px-3">
+            <nav class="navbar bg-white border-bottom px-3 sticky-top shadow-sm">
                 <span class="navbar-brand mb-0 fw-semibold">@yield('page-title', 'Dashboard')</span>
                 <span class="text-muted small">{{ auth()->user()->name ?? 'Admin' }}</span>
             </nav>
 
-            <div class="p-4">
-
-                @if (session('success'))
-                    <div class="alert alert-success alert-dismissible fade show">
-                        {{ session('success') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-
-                @if (session('error'))
-                    <div class="alert alert-danger alert-dismissible fade show">
-                        {{ session('error') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-
+            <div class="p-4" style="overflow-y: auto; height: calc(100vh - 57px);">
                 @yield('content')
             </div>
 
