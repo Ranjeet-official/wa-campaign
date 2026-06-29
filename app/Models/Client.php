@@ -2,19 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Client extends Model
+class Client extends Authenticatable
 {
     use HasFactory;
 
-    protected $fillable = [
+    protected $guard = 'client';
 
+    protected $fillable = [
         'name',
         'email',
         'phone',
         'company',
+        'password',
 
         'wa_sender_number',
         'wa_api_key',
@@ -26,7 +28,23 @@ class Client extends Model
         'pincode',
 
         'status',
+        'wa_phone_number_id',
+        'wa_access_token',
+        'wa_waba_id',
+
+        'chatbot_slug',
+        'chatbot_enabled',
+        'whatsapp_enabled',
+        'welcome_message',
+
     ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -43,7 +61,6 @@ class Client extends Model
     {
         return $this->hasMany(Template::class);
     }
-
 
     public function defaultTemplate()
     {

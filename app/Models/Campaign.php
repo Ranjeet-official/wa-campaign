@@ -16,6 +16,7 @@ class Campaign extends Model
         'name',
         'message',
         'media_file',
+        'media_original_name', // ← add karo
         'sheet_file',
         'start_date',
         'end_date',
@@ -41,6 +42,6 @@ class Campaign extends Model
 
     public function templates()
     {
-        return $this->belongsTo(Template::class,'template_id');
+        return $this->belongsTo(Template::class, 'template_id');
     }
 }

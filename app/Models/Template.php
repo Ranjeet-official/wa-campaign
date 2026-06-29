@@ -20,10 +20,12 @@ class Template extends Model
         'variables',
         'meta_template_id',
         'status',
+        'approved_at'
     ];
 
     protected $casts = [
-        'variables' => 'array',
+        'variables'   => 'array',
+        'approved_at' => 'datetime',
     ];
 
     /*
@@ -37,7 +39,8 @@ class Template extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function campaigns(){
+    public function campaigns()
+    {
         return $this->hasMany(Campaign::class);
     }
 

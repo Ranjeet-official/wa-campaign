@@ -4,15 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Campaign;
 use App\Models\Client;
+use App\Models\ChatbotConversation;
 use Illuminate\Support\Facades\Auth;
 
 class AdminController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth');
-    }
-
     public function dashboard()
     {
         $adminId = Auth::id();
@@ -24,19 +20,23 @@ class AdminController extends Controller
         $totalCampaigns = Campaign::count();
 
         // ───────── STATUS WISE CAMPAIGNS ─────────
-        $activeCampaigns = Campaign::where('status', 'running')->count();
-
-        $pendingCampaigns = Campaign::where('status', 'draft')->count();
-
+        $activeCampaigns    = Campaign::where('status', 'running')->count();
+        $pendingCampaigns   = Campaign::where('status', 'draft')->count();
         $completedCampaigns = Campaign::where('status', 'completed')->count();
-
-        $failedCampaigns = Campaign::where('status', 'failed')->count();
+        $failedCampaigns    = Campaign::where('status', 'failed')->count();
 
         // ───────── RECENT CAMPAIGNS ─────────
         $recentCampaigns = Campaign::with('client')
             ->latest()
             ->take(5)
             ->get();
+
+        // ───────── ✅ CHATBOT STATS (sab clients ka overall) ─────────
+        $totalChatSessions = ChatbotConversation::distinct('session_id')->count('session_id');
+        $totalChatMessages = ChatbotConversation::count();
+        $todayChatSessions = ChatbotConversation::whereDate('created_at', today())
+            ->distinct('session_id')
+            ->count('session_id');
 
         return view('admin.dashboard', compact(
             'totalClients',
@@ -45,7 +45,10 @@ class AdminController extends Controller
             'pendingCampaigns',
             'completedCampaigns',
             'failedCampaigns',
-            'recentCampaigns'
+            'recentCampaigns',
+            'totalChatSessions',
+            'totalChatMessages',
+            'todayChatSessions',
         ));
     }
 }

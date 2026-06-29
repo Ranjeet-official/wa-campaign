@@ -4,14 +4,16 @@
 @section('page-title', $campaign->name)
 
 @section('content')
+
+    <div id="ajaxMessage"></div>
     <div class="row justify-content-center">
-        <div class="col-lg-10">
+        <div class="col-12 col-lg-10">
 
             {{-- Campaign Info --}}
             <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-md-4">
 
-                    <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                         <div>
                             <h4 class="fw-bold mb-1">{{ $campaign->name }}</h4>
                             <small class="text-muted">Campaign Overview</small>
@@ -38,31 +40,28 @@
                         {!! $campaign->message ? nl2br(e($campaign->message)) : 'No message' !!}
                     </p>
 
-
-
                     {{-- Media File --}}
                     @if ($campaign->media_file)
                         @php
                             $ext = strtolower(pathinfo($campaign->media_file, PATHINFO_EXTENSION));
                             $mediaUrl = asset('storage/' . $campaign->media_file);
-                            $filename = basename($campaign->media_file);
+                            $filename = $campaign->media_original_name ?? basename($campaign->media_file);
                             $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif']);
                             $isVideo = in_array($ext, ['mp4', '3gp', 'mov', 'webm']);
                             $isAudio = in_array($ext, ['mp3', 'ogg', 'aac', 'wav']);
                         @endphp
-                        <div class="card border-0 shadow-sm mb-4">
+                        <div class="card border-0 shadow-sm mb-4 mt-3">
                             <div
-                                class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                                class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                                 <h6 class="mb-0 fw-semibold">
                                     <i class="bi bi-paperclip me-2"></i>Media File
                                 </h6>
-                                <a href="{{ $mediaUrl }}" download target="_blank"
+                                <a href="{{ $mediaUrl }}" download="{{ $filename }}"
                                     class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-download me-1"></i>Download
                                 </a>
                             </div>
                             <div class="card-body p-0">
-
                                 @if ($isImage)
                                     <img src="{{ $mediaUrl }}" alt="Campaign Media" class="img-fluid w-100"
                                         style="max-height:340px; object-fit:contain; background:#f8fafc;">
@@ -107,11 +106,9 @@
                                         </div>
                                     </div>
                                 @endif
-
                             </div>
                         </div>
                     @endif
-
 
                 </div>
             </div>
@@ -150,9 +147,7 @@
                 </div>
             </div>
 
-
-
-            {{-- Contacts (Excel Data) --}}
+            {{-- Contacts --}}
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between">
                     <h6 class="mb-0 fw-semibold">
@@ -169,6 +164,7 @@
                                 <th>Name</th>
                                 <th>WhatsApp</th>
                                 <th>Status</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -177,7 +173,7 @@
                                     <td class="text-muted small">{{ $loop->iteration }}</td>
                                     <td>{{ $contact->name }}</td>
                                     <td>{{ $contact->phone }}</td>
-                                    <td>
+                                    <td id="contact-status-{{ $contact->id }}">
                                         @if (($contact->status ?? 'pending') === 'sent')
                                             <span
                                                 class="badge bg-success-subtle text-success border border-success-subtle">Sent</span>
@@ -189,10 +185,25 @@
                                                 class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>
                                         @endif
                                     </td>
+                                    <td>
+                                        @if ($campaign->status !== 'draft' && ($contact->status ?? 'pending') !== 'sent')
+                                            <button class="btn btn-sm btn-outline-warning retrySend"
+                                                data-campaign="{{ $campaign->id }}" data-contact="{{ $contact->id }}"
+                                                data-url="{{ Auth::guard('web')->check()
+                                                    ? route('campaigns.sendSingle', [$campaign->id, $contact->id])
+                                                    : route('client.campaigns.sendSingle', [$campaign->id, $contact->id]) }}">
+                                                <i class="bi bi-arrow-clockwise"></i> Retry
+                                            </button>
+                                        @elseif ($campaign->status === 'draft')
+                                            <span class="text-muted small">Not sent yet</span>
+                                        @else
+                                            <span class="text-muted small">—</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
+                                    <td colspan="5" class="text-center text-muted py-4">
                                         No contacts uploaded.
                                     </td>
                                 </tr>
@@ -202,20 +213,87 @@
                 </div>
             </div>
 
-            <div class="d-flex justify-content-between mt-4">
-                <a href="{{ route('campaigns.index', ['client_id' => $client_id]) }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-1"></i> Back
-                </a>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4">
 
-                <a href="{{ route('campaigns.edit', [
-                    'campaign' => $campaign->id,
-                    'client_id' => request('client_id'),
-                ]) }}"
-                    class="btn btn-primary">
-                    <i class="bi bi-pencil me-1"></i> Edit Campaign
-                </a>
+                {{-- Back Button --}}
+                @if (Auth::guard('web')->check())
+                    <a href="{{ route('campaigns.index', ['client_id' => $client_id]) }}"
+                        class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </a>
+                @else
+                    <a href="{{ route('client.campaigns.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </a>
+                @endif
+
+                {{-- Edit Button --}}
+                @if (in_array(strtolower($campaign->status), ['completed', 'partial', 'running']))
+                    <button class="btn btn-primary" disabled title="Completed or partial campaigns cannot be edited">
+                        <i class="bi bi-pencil me-1"></i> Edit Campaign
+                    </button>
+                @else
+                    @if (Auth::guard('web')->check())
+                        <a href="{{ route('campaigns.edit', ['campaign' => $campaign->id, 'client_id' => request('client_id')]) }}"
+                            class="btn btn-primary">
+                            <i class="bi bi-pencil me-1"></i> Edit Campaign
+                        </a>
+                    @else
+                        <a href="{{ route('client.campaigns.edit', $campaign->id) }}" class="btn btn-primary">
+                            <i class="bi bi-pencil me-1"></i> Edit Campaign
+                        </a>
+                    @endif
+                @endif
+
             </div>
 
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        $(document).on('click', '.retrySend', function() {
+            const btn = $(this);
+            const contactId = btn.data('contact');
+            const url = btn.data('url');
+
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(res) {
+                    if (res.status) {
+                        $('#contact-status-' + contactId).html(
+                            '<span class="badge bg-success-subtle text-success border border-success-subtle">Sent</span>'
+                        );
+                        btn.closest('td').html('<span class="text-muted small">—</span>');
+                        showAlert('success', res.message);
+                    } else {
+                        btn.prop('disabled', false).html('<i class="bi bi-arrow-clockwise"></i> Retry');
+                        showAlert('danger', res.message);
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false).html('<i class="bi bi-arrow-clockwise"></i> Retry');
+                    showAlert('danger', 'Something went wrong. Please try again.');
+                }
+            });
+        });
+
+        function showAlert(type, message) {
+            $('#ajaxMessage').html(`
+                <div class="alert alert-${type} alert-dismissible fade show">
+                    <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-1"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            setTimeout(() => $('.alert').alert('close'), 4000);
+        }
+    </script>
+@endpush

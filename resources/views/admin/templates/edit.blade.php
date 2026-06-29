@@ -6,11 +6,17 @@
 @section('content')
     <div class="container mt-4">
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4>Edit Template</h4>
-            <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-2">
-                <i class="bi bi-arrow-left"></i> Back to List
-            </a>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h4 class="mb-0">Edit Template</h4>
+            @if (Auth::guard('web')->check())
+                <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-2">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            @else
+                <a href="{{ route('client.templates.index') }}" class="btn btn-outline-secondary px-2">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            @endif
         </div>
 
         <div class="card shadow-sm">
@@ -19,21 +25,24 @@
                     @csrf
                     <div class="row g-3">
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Client <span class="text-danger">*</span></label>
-                            <select name="client_id" class="form-select">
-                                <option value="">— Select Client —</option>
-                                @foreach ($clients as $client)
-                                    <option value="{{ $client->id }}"
-                                        {{ $template->client_id == $client->id ? 'selected' : '' }}>
-                                        {{ $client->name }} ({{ $client->company }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback d-block" id="err_client_id"></div>
-                        </div>
+                        {{-- Client Dropdown — sirf admin ke liye --}}
+                        @if (Auth::guard('web')->check())
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Client <span class="text-danger">*</span></label>
+                                <select name="client_id" class="form-select">
+                                    <option value="">— Select Client —</option>
+                                    @foreach ($clients as $client)
+                                        <option value="{{ $client->id }}"
+                                            {{ $template->client_id == $client->id ? 'selected' : '' }}>
+                                            {{ $client->name }} ({{ $client->company }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback d-block" id="err_client_id"></div>
+                            </div>
+                        @endif
 
-                        <div class="col-md-6">
+                        <div class="{{ Auth::guard('web')->check() ? 'col-12 col-md-6' : 'col-12' }}">
                             <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" value="{{ $template->name }}"
                                 placeholder="e.g. order_confirmation">
@@ -41,7 +50,7 @@
                             <div class="invalid-feedback d-block" id="err_name"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
                             <select name="category" class="form-select">
                                 <option value="">— Select Category —</option>
@@ -55,7 +64,7 @@
                             <div class="invalid-feedback d-block" id="err_category"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold">Language <span class="text-danger">*</span></label>
                             <select name="language" class="form-select">
                                 <option value="en" {{ $template->language == 'en' ? 'selected' : '' }}>English</option>
@@ -66,13 +75,13 @@
                             <div class="invalid-feedback d-block" id="err_language"></div>
                         </div>
 
-                        <div class="col-md-12">
+                        <div class="col-12">
                             <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
                             <small class="text-muted d-block mb-1">
                                 Use <code>{name}</code> for recipient's name — automatically replaced during campaign.
                             </small>
                             <textarea name="message" rows="5" class="form-control"
-                                placeholder="e.g. Hello {name}, your request has been received. Our team will contact you shortly.">{{ $template->message }}</textarea>
+                                placeholder="e.g. Hello {name}, your request has been received.">{{ $template->message }}</textarea>
                             <div class="invalid-feedback d-block" id="err_message"></div>
                         </div>
 
@@ -80,11 +89,16 @@
 
                     <hr class="mt-4">
 
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
                         <button type="submit" class="btn btn-primary px-4" id="submitBtn">
                             <i class="bi bi-save me-1"></i> Update Template
                         </button>
-                        <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        @if (Auth::guard('web')->check())
+                            <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        @else
+                            <a href="{{ route('client.templates.index') }}"
+                                class="btn btn-outline-secondary px-4">Cancel</a>
+                        @endif
                     </div>
 
                 </form>
@@ -116,6 +130,14 @@
                 });
             }
 
+            @if (Auth::guard('web')->check())
+                const updateUrl = '{{ route('templates.update', $template) }}';
+                const redirectUrl = '{{ route('templates.index') }}';
+            @else
+                const updateUrl = '{{ route('client.templates.update', $template) }}';
+                const redirectUrl = '{{ route('client.templates.index') }}';
+            @endif
+
             $('#editTemplateForm').on('submit', function(e) {
                 e.preventDefault();
                 clearErrors();
@@ -126,14 +148,15 @@
                 );
 
                 $.ajax({
-                    url: '{{ route('templates.update', $template) }}',
+                    url: updateUrl,
                     type: 'POST',
                     data: $(this).serialize() + '&_method=PUT',
                     success: function(res) {
                         if (res.status) {
-                            window.location.href = '{{ route('templates.index') }}?success=' +
-                                encodeURIComponent(res.message ??
-                                    'Template updated successfully!');
+                            // ✅ sessionStorage use karo
+                            sessionStorage.setItem('flashMessage', res.message ??
+                                'Template updated successfully!');
+                            window.location.href = redirectUrl;
                         }
                     },
                     error: function(xhr) {

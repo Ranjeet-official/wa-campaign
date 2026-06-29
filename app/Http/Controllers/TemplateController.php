@@ -7,6 +7,8 @@ use App\Models\Client;
 use App\Models\Template;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 
 
 class TemplateController extends Controller
@@ -18,38 +20,21 @@ class TemplateController extends Controller
     {
         $templates = Template::with('client')->latest()->paginate(10);
 
-        foreach ($templates as $template) {
-            if ($template->meta_template_id) {
-                $response = Http::withToken(env('WHATSAPP_TOKEN'))
-                    ->get("https://graph.facebook.com/v25.0/{$template->meta_template_id}");
-
-                if ($response->successful()) {
-                    $metaStatus = strtolower($response->json('status'));
-
-                    $status = match ($metaStatus) {
-                        'approved' => 'approved',
-                        'rejected' => 'rejected',
-                        default    => 'pending',
-                    };
-
-                    if ($template->status !== $status) {
-                        $template->update(['status' => $status]);
-                    }
-                }
-            }
-        }
-
         return view('admin.templates.index', compact('templates'));
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        $clients = Client::where('status', 'active')->orderBy('name')->get();
-        return view('admin.templates.create', compact('clients'));
-    }
+            public function create()
+            {
+                $clients = Client::where('status', 'active')
+                    ->where('whatsapp_enabled', true)
+                    ->orderBy('name')
+                    ->get();
+
+                return view('admin.templates.create', compact('clients'));
+            }
 
     /**
      * Store a newly created resource in storage.
@@ -76,61 +61,71 @@ class TemplateController extends Controller
     {
         $request->validate([
             'client_id' => 'required|exists:clients,id',
-            'name'      => 'required|regex:/^[a-z0-9_]+$/',
+            'name'      => [
+                'required',
+                'regex:/^[a-z0-9_]+$/',
+                \Illuminate\Validation\Rule::unique('templates', 'name')
+                    ->where('client_id', $request->client_id), // ✅ same client check
+            ],
             'category'  => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'language'  => 'required',
             'message'   => 'required|string',
+        ], [
+            'name.unique' => 'This template name already exists for this client.',
         ]);
 
-        // {name} extract karo
         preg_match_all('/\{(\w+)\}/', $request->message, $matches);
-        $variables = $matches[1] ?? [];
+        // $variables = $matches[1] ?? [];
+        $variables = array_values(array_unique($matches[1] ?? []));
 
-        // {name} → {{1}} Meta format me convert karo
+
         $metaMessage = $request->message;
         $index = 1;
         foreach ($variables as $var) {
             $metaMessage = str_replace('{' . $var . '}', '{{' . $index . '}}', $metaMessage);
             $index++;
         }
-        // Meta API call
-        $components = [];
 
+        $components = [];
         if (!empty($variables)) {
             $components[] = [
                 'type'    => 'BODY',
                 'text'    => $metaMessage,
-                'example' => [
-                    'body_text' => [
-                        array_map(fn($v) => 'John', $variables)
-                    ]
-                ]
+                'example' => ['body_text' => [array_map(fn($v) => 'John', $variables)]]
             ];
         } else {
-            $components[] = [
-                'type' => 'BODY',
-                'text' => $metaMessage,
-            ];
+            $components[] = ['type' => 'BODY', 'text' => $metaMessage];
         }
+
+        // ✅ Meta ke liye unique — DB ke liye original
+        $metaTemplateName = 'c' . $request->client_id . '_' . $request->name;
+
 
         $response = Http::withToken(env('WHATSAPP_TOKEN'))
             ->post("https://graph.facebook.com/v25.0/" . env('WABA_ID') . "/message_templates", [
-                'name'       => $request->name,
+                'name'       => $metaTemplateName, // ✅ "c2_account_created"
                 'category'   => $request->category,
                 'language'   => $request->language,
                 'components' => $components,
             ]);
 
+
+
+
         if ($response->failed()) {
+            $error = $response->json('error');
             return response()->json([
                 'status'  => false,
-                'message' => $response->json('error.error_user_msg') ?? $response->json('error.message') ?? 'Meta API error.',
+                'message' => $error['error_user_msg'] ?? $error['error_user_title'] ?? $error['message'] ?? 'Meta API error.',
             ], 422);
         }
 
+
+
+        // ✅ DB mein original name — koi column change nahi
         Template::create([
             'client_id'        => $request->client_id,
-            'name'             => $request->name,
+            'name'             => $request->name,        // "account_created"
             'category'         => $request->category,
             'language'         => $request->language,
             'message'          => $request->message,
@@ -154,26 +149,155 @@ class TemplateController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
+
+
+
     public function edit(Template $template)
-    {
-        $clients = Client::where('status', 'active')->orderBy('name')->get();
-        return view('admin.templates.edit', compact('template', 'clients'));
-    }
+        {
+            $clients = Client::where('status', 'active')
+                ->where('whatsapp_enabled', true)
+                ->orderBy('name')
+                ->get();
+
+            return view('admin.templates.edit', compact('template', 'clients'));
+        }
+
+
+//  public function edit(Template $template)
+// {
+//     $clients = Client::where('status', 'active')
+//         ->where(function ($query) use ($template) {
+//             $query->where('whatsapp_enabled', true)
+//                   ->orWhere('id', $template->client_id);
+//         })
+//         ->orderBy('name')
+//         ->get();
+
+//     return view('admin.templates.edit', compact('template', 'clients'));
+// }
 
     public function update(Request $request, Template $template)
     {
-        $validated = $request->validate([
+        // ───────────────── APPROVED BLOCK ─────────────────
+        if (in_array(strtolower($template->status), ['approved', 'active'])) {
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Approved templates cannot be edited.',
+            ], 422);
+        }
+
+        // ───────────────── VALIDATION ─────────────────
+        $request->validate([
             'client_id' => 'required|exists:clients,id',
-            'name'      => 'required|string|max:255',
-            // 'status'    => 'required|in:pending,approved,rejected',
+            'name'      => 'required|regex:/^[a-z0-9_]+$/',
+            'category'  => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
+            'language'  => 'required',
             'message'   => 'required|string',
         ]);
 
-        $template->update($validated);
+        // ───────────────── VARIABLES EXTRACT ─────────────────
+        preg_match_all('/\{(\w+)\}/', $request->message, $matches);
+
+        // $variables = $matches[1] ?? [];
+        $variables = array_values(array_unique($matches[1] ?? []));
+
+
+        // ───────────────── META FORMAT ─────────────────
+        $metaMessage = $request->message;
+
+        $index = 1;
+
+        foreach ($variables as $var) {
+
+            $metaMessage = str_replace(
+                '{' . $var . '}',
+                '{{' . $index . '}}',
+                $metaMessage
+            );
+
+            $index++;
+        }
+
+        // ───────────────── COMPONENTS ─────────────────
+        $components = [];
+
+        if (!empty($variables)) {
+
+            $components[] = [
+                'type'    => 'BODY',
+                'text'    => $metaMessage,
+                'example' => [
+                    'body_text' => [
+                        array_map(fn($v) => 'John', $variables)
+                    ]
+                ]
+            ];
+        } else {
+
+            $components[] = [
+                'type' => 'BODY',
+                'text' => $metaMessage,
+            ];
+        }
+
+        // ───────────────── UNIQUE TEMPLATE NAME ─────────────────
+        // Meta same name instantly allow nahi karta
+        $newTemplateName = $request->name . '_v' . time();
+
+        // ───────────────── CREATE NEW TEMPLATE ─────────────────
+        $response = Http::withToken(env('WHATSAPP_TOKEN'))
+            ->post(
+                "https://graph.facebook.com/v25.0/" . env('WABA_ID') . "/message_templates",
+                [
+                    'name'       => $newTemplateName,
+                    'category'   => $request->category,
+                    'language'   => $request->language,
+                    'components' => $components,
+                ]
+            );
+
+        // ───────────────── META ERROR ─────────────────
+        if ($response->failed()) {
+
+            return response()->json([
+                'status'  => false,
+                'message' =>
+                $response->json('error.error_user_msg')
+                    ?? $response->json('error.message')
+                    ?? 'Meta API error.',
+            ], 422);
+        }
+
+        // ───────────────── DELETE OLD TEMPLATE (OPTIONAL) ─────────────────
+        if (!empty($template->name) && !empty($template->language)) {
+
+            Http::withToken(env('WHATSAPP_TOKEN'))
+                ->delete(
+                    "https://graph.facebook.com/v25.0/" . env('WABA_ID') . "/message_templates",
+                    [
+                        'name'     => $template->name,
+                        'language' => $template->language,
+                    ]
+                );
+        }
+
+        // ───────────────── UPDATE DATABASE ─────────────────
+        $template->update([
+            'client_id'        => $request->client_id,
+            'name'             => $newTemplateName,
+            'category'         => $request->category,
+            'language'         => $request->language,
+            'message'          => $request->message,
+            'variables'        => $variables,
+            'meta_template_id' => $response->json('id'),
+            'status'           => 'pending',
+            'approved_at'      => null,
+        ]);
 
         return response()->json([
             'status'  => true,
-            'message' => 'Template updated successfully!',
+            'message' => 'Template updated and resubmitted to Meta successfully!',
         ]);
     }
 

@@ -6,11 +6,17 @@
 @section('content')
     <div class="container mt-4">
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4>Add New Template</h4>
-            <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-2">
-                <i class="bi bi-arrow-left"></i> Back to List
-            </a>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h4 class="mb-0">Add New Template</h4>
+            @if (Auth::guard('web')->check())
+                <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-2">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            @else
+                <a href="{{ route('client.templates.index') }}" class="btn btn-outline-secondary px-2">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            @endif
         </div>
 
         <div class="card shadow-sm">
@@ -19,27 +25,32 @@
                     @csrf
                     <div class="row g-3">
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Client <span class="text-danger">*</span></label>
-                            <select name="client_id" class="form-select">
-                                <option value="">— Select Client —</option>
-                                @foreach ($clients as $client)
-                                    <option value="{{ $client->id }}">
-                                        {{ $client->name }} ({{ $client->company }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback d-block" id="err_client_id"></div>
-                        </div>
+                        {{-- Client dropdown — sirf admin ko --}}
+                        @if (Auth::guard('web')->check())
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Client <span class="text-danger">*</span></label>
+                                <select name="client_id" class="form-select">
+                                    <option value="">— Select Client —</option>
+                                    @foreach ($clients as $client)
+                                        <option value="{{ $client->id }}">
+                                            {{ $client->name }} ({{ $client->company }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback d-block" id="err_client_id"></div>
+                            </div>
+                        @endif
 
-                        <div class="col-md-6">
+                        {{-- Template Name --}}
+                        <div class="{{ Auth::guard('web')->check() ? 'col-12 col-md-6' : 'col-12' }}">
                             <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" placeholder="e.g. order_confirmation">
-                            <small class="text-muted">Sirf lowercase, numbers aur underscore allowed</small>
+                            <small class="text-muted">Only lowercase, numbers aur underscore allowed</small>
                             <div class="invalid-feedback d-block" id="err_name"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        {{-- Category --}}
+                        <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
                             <select name="category" class="form-select">
                                 <option value="">— Select Category —</option>
@@ -50,7 +61,8 @@
                             <div class="invalid-feedback d-block" id="err_category"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        {{-- Language --}}
+                        <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold">Language <span class="text-danger">*</span></label>
                             <select name="language" class="form-select">
                                 <option value="en" selected>English</option>
@@ -60,7 +72,8 @@
                             <div class="invalid-feedback d-block" id="err_language"></div>
                         </div>
 
-                        <div class="col-md-12">
+                        {{-- Message --}}
+                        <div class="col-12">
                             <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
                             <small class="text-muted d-block mb-1">
                                 Use <code>{name}</code> for recipient's name — automatically replaced during campaign.
@@ -74,11 +87,16 @@
 
                     <hr class="mt-4">
 
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
                         <button type="submit" class="btn btn-primary px-4" id="submitBtn">
                             <i class="bi bi-save me-1"></i> Save Template
                         </button>
-                        <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        @if (Auth::guard('web')->check())
+                            <a href="{{ route('templates.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        @else
+                            <a href="{{ route('client.templates.index') }}"
+                                class="btn btn-outline-secondary px-4">Cancel</a>
+                        @endif
                     </div>
 
                 </form>
@@ -120,14 +138,16 @@
                 );
 
                 $.ajax({
-                    url: '{{ route('templates.store') }}',
+                    url: '{{ Auth::guard('web')->check() ? route('templates.store') : route('client.templates.store') }}',
                     type: 'POST',
                     data: $(this).serialize(),
                     success: function(res) {
                         if (res.status) {
-                            window.location.href = '{{ route('templates.index') }}?success=' +
-                                encodeURIComponent(res.message ??
-                                    'Template Create successfully!');
+                            // ✅ sessionStorage use karo
+                            sessionStorage.setItem('flashMessage', res.message ??
+                                'Template created successfully!');
+                            window.location.href =
+                                '{{ Auth::guard('web')->check() ? route('templates.index') : route('client.templates.index') }}';
                         }
                     },
                     error: function(xhr) {

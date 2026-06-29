@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Schema;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -18,14 +19,15 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Bootstrap any application services.
-     */
-    public function boot(): void
+     */ public function boot(): void
     {
+        // ✅ Default pagination view — "Showing X to Y" nahi aayega
+        Paginator::defaultView('vendor.pagination.simple-bootstrap-5');
         Paginator::useBootstrap();
 
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
-                view()->share('settings', \App\Models\Setting::first());
+            if (Schema::hasTable('settings')) {
+                view()->share('settings', Setting::first());
             }
         } catch (\Exception $e) {
             // Ignore database errors during deployment
